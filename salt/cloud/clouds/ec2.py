@@ -2768,3 +2768,74 @@ def describe_snapshot(kwargs=None, call=None):
 
     data = query(params, return_root=True)
     return data
+
+def snapshot_disks(kwargs=None, call=None):
+    '''
+    Make a snapshot for specific disks on an instance
+    Usage:
+        salt-cloud -f snapshot_disks ec2 instance_name=my-ec2-instance disk_names=/dev/sda1,/dev/sdf
+
+    Note:
+        Description may be a string, which would be applied to all snapshots,
+        or list of stringseparated by "+".
+        Number of descriptions should be equal to ammount of volumes to be snapshotted,
+        Single description shall be applied to all snapshots.
+
+        if disks are named /dev/xvda, /dev/xvdf, change names to /dev/sda, /dev/sdf
+    '''
+    if call != 'function':
+        log.error(
+            'The delete_keypair function must be called with -f or --function.'
+        )
+        return False
+
+    if not kwargs:
+        kwargs = {}
+
+    if 'instance_name' not in kwargs:
+        log.error('A instance_name is required.')
+        return False
+
+    if 'disk_names' not in kwargs:
+        log.error('A disk_names is required.')
+        return False
+
+    if 'description' not in kwargs:
+        description = ''
+    else:
+        description = kwargs['description']
+
+    instance_name, disk_names = kwargs['instance_name'], kwargs['disk_names'].split(',')
+    volume_ids_and_disk_names = _get_volume_ids(instance_name, disk_names)
+    volume_ids = [x[-1] for x in volume_ids_and_disk_names]
+
+    # Sort out descriptions
+    if not isinstance(description, list):
+        description = description.split('+')
+
+    #print "NRs:", len(description), len(disk_names)
+    #print instance_name, disk_names
+    #print "Description", description
+
+    if len(description) != len(disk_names) and len(description) != 1:
+        log.error(
+            'Amount of descriptions should be equal to 1 or to the number of disk_names.'
+        )
+        return False
+
+    if len(description) == 1:
+        description = [description[0] for x in range(len(disk_names))]
+
+
+    description = [' '.join([instance_name, x[0][0], x[1]]) for x in zip(volume_ids_and_disk_names, description)]
+    volume_ids_and_descriptions = zip(volume_ids, description)
+
+    out = {}
+
+    for volume_id_description_pair in volume_ids_and_descriptions:
+        volume_id_to_snapshot, snapshot_description = volume_id_description_pair
+        print volume_id_to_snapshot
+        print snapshot_description
+
+    data = "milk"
+    return data
