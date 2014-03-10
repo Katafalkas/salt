@@ -527,7 +527,7 @@ def avail_sizes(call=None):
             },
         },
         'High I/O': {
-            'hi1.4xlarge': {
+            'hi1.4xlarge': {s
                 'id': 'hi1.4xlarge',
                 'cores': '8 (with 4.37 ECUs each)',
                 'disk': '2 TiB',
@@ -2665,7 +2665,7 @@ def create_snapshot(kwargs=None, call=None):
         return False
 
     if 'description' not in kwargs:
-        kwargs['description'] = 'pew'
+        kwargs['description'] = ''
 
     params = {'Action': 'CreateSnapshot'}
 
@@ -2769,6 +2769,18 @@ def describe_snapshot(kwargs=None, call=None):
     data = query(params, return_root=True)
     return data
 
+
+def _get_volume_ids(instance_name, disk_names):
+    device_name_volumeid_pairs = []
+    disks = list_nodes_full()[instance_name]['blockDeviceMapping']['item']
+    if not isinstance(disks, list):
+        disks = [disks]
+    disks = {disk['deviceName']: disk['ebs']['volumeId'] for disk in disks}
+    for disk_name in disk_names:
+        device_name_volumeid_pairs.append((disk_name, disks[disk_name]))
+    return device_name_volumeid_pairs
+
+
 def snapshot_disks(kwargs=None, call=None):
     '''
     Make a snapshot for specific disks on an instance
@@ -2777,7 +2789,7 @@ def snapshot_disks(kwargs=None, call=None):
 
     Note:
         Description may be a string, which would be applied to all snapshots,
-        or list of stringseparated by "+".
+        or list of stringseparated by ",".
         Number of descriptions should be equal to ammount of volumes to be snapshotted,
         Single description shall be applied to all snapshots.
 
@@ -2811,11 +2823,7 @@ def snapshot_disks(kwargs=None, call=None):
 
     # Sort out descriptions
     if not isinstance(description, list):
-        description = description.split('+')
-
-    #print "NRs:", len(description), len(disk_names)
-    #print instance_name, disk_names
-    #print "Description", description
+        description = description.split(',')
 
     if len(description) != len(disk_names) and len(description) != 1:
         log.error(
@@ -2827,15 +2835,17 @@ def snapshot_disks(kwargs=None, call=None):
         description = [description[0] for x in range(len(disk_names))]
 
 
-    description = [' '.join([instance_name, x[0][0], x[1]]) for x in zip(volume_ids_and_disk_names, description)]
+    #description = [':'.join([instance_name, x[0][0], x[1]]) for x in zip(volume_ids_and_disk_names, description)]
     volume_ids_and_descriptions = zip(volume_ids, description)
 
-    out = {}
+    out = []
 
     for volume_id_description_pair in volume_ids_and_descriptions:
         volume_id_to_snapshot, snapshot_description = volume_id_description_pair
-        print volume_id_to_snapshot
-        print snapshot_description
+        snapshot_dict = {'volume_id': volume_id_to_snapshot, 'description': snapshot_description}
+        created_snapshot = create_snapshot(snapshot_dict, call='function')
+        # Aggregate multiple dicts into single dict
+        created_snapshot = { k: v for d in created_snapshot for k, v in d.items() }
+        out.append(created_snapshot)
 
-    data = "milk"
-    return data
+    return out
